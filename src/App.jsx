@@ -3,61 +3,89 @@ import React, { useEffect, useState } from "react";
 const App = () => {
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(false);  // only for READ error
+  const [text, setText] = useState("");
 
+  // ---- READ DATA ONCE ----
   useEffect(() => {
-    fetchTheData();
-    // set a timeout to delay the application (optional)
-  }, []); // dependencies
+    async function load() {
+      try {
+        setIsLoading(true);
+        setError(false);
 
-  async function fetchTheData() {
-    try {
-      setIsLoading(true);
-      setError(null);
+        const res = await fetch(
+          "https://9ic4qmke47.execute-api.us-east-2.amazonaws.com/prod/reading?userid=srivant"
+        );
 
-      // fetch api request to dynamo
-      // use FETCH your API from a previous assignment on a hardcoded user
-      const response = await fetch(
-        "https://9ic4qmke47.execute-api.us-east-2.amazonaws.com/prod/reading?userid=srivant"
-      );
+        if (!res.ok) throw new Error("Read failed");
+        const data = await res.json();
 
-      if (!response.ok) {
-        throw new Error(`HTTPS fetch error! status: ${response.status}`);
+        setItems(data);
+      } catch (e) {
+        console.error("Read error:", e);
+        setError(true); // this is the "Erroneous state ..." case
+      } finally {
+        setIsLoading(false);
       }
+    }
 
-      const data = await response.json();
-      // log result in the console
-      console.log("API Result: ", data);
+    load();
+  }, []);
 
-      // update the list of items
-      // if your Lambda returns { Items: [...] }, use setItems(data.Items || []);
-      setItems(data);
-    } catch (err) {
-      // error state
-      console.error("Fetch error:", err);
-      setError(err.message || "Error Fetching Data");
-    } finally {
-      // is loading state here, unconditionally
-      setIsLoading(false);
+  async function addItem() {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    const newItem = {
+      id: Date.now().toString(),
+      text: trimmed,
+    };
+    setItems((prev) => [newItem, ...prev]);
+    setText("");
+
+    try {
+      const res = await fetch(
+        `https://9ic4qmke47.execute-api.us-east-2.amazonaws.com/prod/writing?userid=srivant&text=${encodeURIComponent(
+          trimmed
+        )}`
+      );
+      if (!res.ok) throw new Error("Write failed");
+     
+    } catch (e) {
+      console.error("Write error:", e);
+      
     }
   }
 
-  // if there is an error or isLoading, render the appropriate message
+  // ---- UI ----
   if (isLoading) {
-    return <div>Loading data from the database ...</div>;
+    return <div>Loading data from database ...</div>;
   }
 
   if (error) {
-    return <div>{error}</div>;
+    return <div>Erroneous state ...</div>;
   }
 
   return (
-    <div className="app-container">
-      <h3>Reading the Database</h3>
+    <div>
+      <h3 style={{ textAlign: "center" }}>Reading the Database</h3>
 
+      {/* Text box + Add button */}
+      <div style={{ textAlign: "center", margin: "20px" }}>
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          style={{ padding: "8px", width: "200px" }}
+        />
+        <button onClick={addItem} style={{ marginLeft: "10px", padding: "8px" }}>
+          Add Item
+        </button>
+      </div>
+
+      {/* List of items */}
       <ul>
-        {items.map((item) => (
-          <li key={item.id}>{item.text}</li>
+        {items.map((x) => (
+          <li key={x.id}>{x.text}</li>
         ))}
       </ul>
     </div>
@@ -65,3 +93,4 @@ const App = () => {
 };
 
 export default App;
+
